@@ -1,6 +1,7 @@
 package main
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -45,6 +46,12 @@ func TestMergeChannels(t *testing.T) {
 				inputChannels[i] = make(chan int)
 			}
 
+			// Преобразуем []chan int в []<-chan int
+			readOnlyChannels := make([]<-chan int, len(inputChannels))
+			for i := range inputChannels {
+				readOnlyChannels[i] = inputChannels[i]
+			}
+
 			// Запускаем горутины для отправки данных в каналы
 			for i, values := range tt.channels {
 				go func(ch chan int, vals []int) {
@@ -56,7 +63,7 @@ func TestMergeChannels(t *testing.T) {
 			}
 
 			// Сливаем каналы
-			merged := MergeChannels(inputChannels...)
+			merged := MergeChannels(readOnlyChannels...)
 
 			// Читаем данные из объединенного канала
 			result := []int{}
@@ -65,24 +72,21 @@ func TestMergeChannels(t *testing.T) {
 			}
 
 			// Проверяем результат (без учета порядка)
-			if len(result) != len(tt.expected) {
-				t.Errorf("ожидалось %d элементов, получено %d", len(tt.expected), len(result))
-			}
-			for _, v := range result {
-				if !contains(tt.expected, v) {
-					t.Errorf("элемент %d не найден в ожидаемых значениях", v)
-				}
+			if !reflect.DeepEqual(sortIntSlice(result), sortIntSlice(tt.expected)) {
+				t.Errorf("ожидалось %v, получено %v", tt.expected, result)
 			}
 		})
 	}
 }
 
-// Помощник для проверки наличия элемента в слайсе
-func contains(slice []int, value int) bool {
-	for _, v := range slice {
-		if v == value {
-			return true
+// Помощник для сортировки слайса целых чисел
+func sortIntSlice(slice []int) []int {
+	sorted := make([]int, len(slice))
+	copy(sorted, slice)
+	for i := 1; i < len(sorted); i++ {
+		for j := i; j > 0 && sorted[j-1] > sorted[j]; j-- {
+			sorted[j-1], sorted[j] = sorted[j], sorted[j-1]
 		}
 	}
-	return false
+	return sorted
 }
